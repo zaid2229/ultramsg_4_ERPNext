@@ -120,14 +120,18 @@ from . import __version__ as app_version
 fixtures=[{ "dt":"Property Setter" ,"filters":[[
                 "name", "in",[
                     "Notification-channel-options",] ]] 
-           }]
+           },
+          { "dt":"Custom Field" ,"filters":[[ "module", "in",["Ultramsg 4 Erpnext"] ]] },]
 
 doctype_js = {
 	"Notification" : "public/js/notification.js"
 }
 override_doctype_class = {
 	"Notification": "ultramsg_4_erpnext.overrides.notification.ERPGulfNotification"
- }
+}
+
+
+
 
 # Document Events
 # ---------------

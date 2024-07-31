@@ -15,12 +15,11 @@ class whatsappmessage(Document):
         'to': recipient,
         'body':"This message is for testing",
        }
-    
+   
    headers = {'content-type': 'application/x-www-form-urlencoded'}
 
    try:
-           response = requests.post(message_url, data=payload, headers=headers)
-           return response.text
+        response = requests.post(message_url, data=payload, headers=headers)
+        return response.text
    except Exception as e:
-          return e
-   
+        return e
