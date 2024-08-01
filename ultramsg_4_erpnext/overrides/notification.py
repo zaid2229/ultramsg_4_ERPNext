@@ -132,20 +132,23 @@ class ERPGulfNotification(Notification):
             
             print(video_file_url)
             
-            payload = {
-                'token': token,
-                'to': add_multiple_numbers_to_url,
-                'body': msg1,
-                "video": video_file_url,
-            }
+            # payload = {
+            #     'token': token,
+            #     'to': add_multiple_numbers_to_url,
+            #     'body': msg1,
+            #     "video": 'https://shaheenerpv15.frappe.cloud/files/recorded_videoe14c90.webm',
+            # }
+            
+            payload = f"token={token}&to={add_multiple_numbers_to_url}&video={video_file_url}caption={msg1}"
+            payload = payload.encode('utf8').decode('iso-8859-1')
             headers = {'content-type': 'application/x-www-form-urlencoded'}
             
             time.sleep(10)
-            response = requests.post(video_url, data=payload, headers=headers)
+            response = requests.post('https://api.ultramsg.com/instance85658/messages/video', data=payload, headers=headers)
             # When the message is successfully sent, its details are stored in ultramsg_4_ERPNext log  
             if response.status_code == 200:
                 response_json = response.json()
-                print(response_json)
+                frappe.errprint(response_json)
                 if "sent" in response_json and response_json["sent"] == "true":
                     # Log success
                     current_time = now()  # for getting current time
@@ -153,13 +156,13 @@ class ERPGulfNotification(Notification):
                     frappe.get_doc({"doctype": "ultramsg_4_ERPNext log", "title": "WhatsApp message successfully sent", "message": msg1, "to_number": doc.custom_mobile_phone, "time": current_time}).insert()
                 elif "error" in response_json:
                     # Log error
-                    frappe.log("WhatsApp API Error: ", response_json.get("error"))
+                    frappe.logger().error(f"WhatsApp API Error: {response_json.get('error')}")
                 else:
                     # Log unexpected response
                     frappe.log("Unexpected response from WhatsApp API")
             else:
                 # Log HTTP error
-                frappe.log("WhatsApp API returned a non-200 status code: ", str(response.status_code))
+                frappe.logger().error(f"WhatsApp API returned a non-200 status code: {str(response.status_code)}")
             return response.text
         except Exception as e:
             frappe.log_error(title='Failed to send notification', message=frappe.get_traceback())
