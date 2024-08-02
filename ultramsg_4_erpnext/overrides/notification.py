@@ -130,13 +130,13 @@ class ERPGulfNotification(Notification):
             site_url = frappe.utils.get_url()
             video_file_url = f"{site_url}{video_file_doc.file_url}"
             
-            frappe.msgprint(video_file_url)
+            
             
             payload = {
                 'token': token,
                 'to': add_multiple_numbers_to_url,
                 'body': msg1,
-                "video": 'http://shaheenerpv15.frappe.cloud/files/recorded-video.mp4',
+                "video": video_file_url,
             }
             
             # payload = f"token={token}&to={add_multiple_numbers_to_url}&video='https://shaheenerpv15.frappe.cloud/files/recorded_video8217c1.mp4'caption={msg1}"
@@ -145,6 +145,7 @@ class ERPGulfNotification(Notification):
             
             time.sleep(10)
             response = requests.post('https://api.ultramsg.com/instance85658/messages/video', data=payload, headers=headers)
+            frappe.errprint(video_file_url)
             # When the message is successfully sent, its details are stored in ultramsg_4_ERPNext log  
             if response.status_code == 200:
                 response_json = response.json()
