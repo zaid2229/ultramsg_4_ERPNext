@@ -108,15 +108,21 @@ class ERPGulfNotification(Notification):
 
     # Send message with video
 
+    import frappe
+    import requests
+
+
+
     def send_whatsapp_with_video(self, doc, context):
-        print(doc)
+        print("Starting send_whatsapp_with_video")
         token = frappe.get_doc('whatsapp message').get('token')
         video_url = frappe.get_doc('whatsapp message').get('video_url')
         msg1 = frappe.render_template(self.message, context)
         recipients = self.get_receiver_list(doc, context) 
         multiple_numbers = [recipient for recipient in recipients]
         add_multiple_numbers_to_url = ','.join(multiple_numbers)
-        print(doc.name)
+        
+        print(f"Document Name: {doc.name}")
         
         # Fetch the video files
         video_files = frappe.get_all('File', filters={"attached_to_name": doc.name, "attached_to_doctype": doc.doctype}, fields=["file_url"])
@@ -125,61 +131,70 @@ class ERPGulfNotification(Notification):
         
         site_url = frappe.utils.get_url()
         
-        # Hardcoded URLs for testing
-    
-        # Use hardcoded URLs or actual video files for iteration
         for url in video_files:
-            print(url)
             video_file_url = f"{site_url}{url.file_url}"
-            print(video_file_url)
-            # Log the constructed video file URL
-            print(f"Constructed Video File URL: {video_file_url}")
+            print(f"Original Video File URL: {video_file_url}")
+            
+            # Convert the video to MP4 using the helper function
+            print("Calling video conversion function...")
+            mp4_url = convert_webm_to_mp4(video_file_url)
+            print(mp4_url)
+            if not mp4_url:
+                print("Failed to convert video to MP4.")
+                frappe.throw(_("Failed to convert video to MP4."))
+            else:
+                print(f"Conversion successful: {mp4_url}")
+            
+            # Prepare the payload for each video
+            payload = {
+                'token': token,
+                'to': add_multiple_numbers_to_url,
+                'video': mp4_url,
+                'caption': msg1
+            }
+            headers = {'content-type': 'application/x-www-form-urlencoded'}
+            print(f"Payload: {payload}")
             
             try:
-                # Check if the video file URL is publicly accessible
-                response = requests.head(video_file_url)
-                if response.status_code != 200:
-                    frappe.throw(_("The video file URL is not publicly accessible: {0}").format(video_file_url))
-                
-                # Prepare the payload for each video
-                payload = {
-                    'token': token,
-                    'to': add_multiple_numbers_to_url,
-                    'video': video_file_url,
-                    'caption': msg1
-                }
-                headers = {'content-type': 'application/x-www-form-urlencoded'}
-                print(f"Payload: {payload}")
-                
                 # Send the request
+                print("Sending video via WhatsApp...")
                 response = requests.post('https://api.ultramsg.com/instance85658/messages/video', data=payload, headers=headers)
                 
                 # Process the response
                 if response.status_code == 200:
                     response_json = response.json()
-                    print(response_json)
+                    print(f"WhatsApp API Response: {response_json}")
                     if "sent" in response_json and response_json["sent"] == "true":
-                        # Log success
-                        current_time = now()  # for getting current time
-                        msg1 = frappe.render_template(self.message, context)
-                        frappe.get_doc({"doctype": "ultramsg_4_ERPNext log", "title": "WhatsApp message successfully sent", "message": msg1, "to_number": doc.custom_mobile_phone, "time": current_time}).insert()
+                        print("Video sent successfully via WhatsApp.")
+                        current_time = frappe.utils.now()  # Get current time
+                        frappe.get_doc({
+                            "doctype": "ultramsg_4_ERPNext log", 
+                            "title": "WhatsApp message successfully sent", 
+                            "message": msg1, 
+                            "to_number": doc.custom_mobile_phone, 
+                            "time": current_time
+                        }).insert()
                     elif "error" in response_json:
-                        # Log error
-                        frappe.log("WhatsApp API Error: ", response_json.get("error"))
+                        print(f"WhatsApp API Error: {response_json.get('error')}")
+                        frappe.log_error("WhatsApp API Error: ", response_json.get("error"))
                     else:
-                        # Log unexpected response
-                        frappe.log("Unexpected response from WhatsApp API")
+                        print("Unexpected response from WhatsApp API.")
+                        frappe.log_error("Unexpected response from WhatsApp API")
                 else:
-                    # Log HTTP error
-                    frappe.log("WhatsApp API returned a non-200 status code: ", str(response.status_code))
+                    print(f"WhatsApp API returned a non-200 status code: {response.status_code}")
+                    frappe.log_error("WhatsApp API returned a non-200 status code: ", str(response.status_code))
                 
-                time.sleep(2)  # Adjust sleep time if needed
+                frappe.utils.sleep(2)  # Adjust sleep time if needed
 
             except Exception as e:
+                print(f"Exception occurred while sending WhatsApp video: {e}")
                 frappe.log_error(title='Failed to send notification', message=frappe.get_traceback())
-        
+            
+        print("All videos sent successfully.")
         return "All videos sent successfully."
 
+        
+    
 
     # Call the appropriate send WhatsApp function based on conditions
     def send(self, doc):
@@ -208,7 +223,8 @@ class ERPGulfNotification(Notification):
                         queue="short",
                         timeout=200,
                         doc=doc,
-                        context=context
+                        context=context,
+                        enqueue_after_commit=True
                     )
                 # Otherwise, send only the message   
                 else:
@@ -253,3 +269,38 @@ class ERPGulfNotification(Notification):
         # Removing none_object from the list
         final_receiver_list = [item for item in receiver_list if item is not None]
         return final_receiver_list
+    
+    
+    
+def convert_webm_to_mp4(webm_url):
+    try:
+        # Construct the URL for the Frappe API method
+        conversion_url = frappe.utils.get_url() + '/api/method/ultramsg_4_erpnext.api.video_converter.convert_to_mp4'
+        
+        # Send a POST request to the API method with the WebM file URL
+        conversion_response = requests.post(
+            conversion_url,
+            data={'file_url': webm_url},
+            headers={'X-Frappe-CSRF-Token': frappe.session.csrf_token}
+        )
+        
+        print(conversion_response)
+
+        # Check if the conversion was successful
+        if conversion_response.status_code == 200:
+            response_json = conversion_response.json()
+            print(response_json)
+            mp4_url = response_json.get('message', {}).get('file_url')
+            print(f"Conversion successful: {mp4_url}")
+            return mp4_url
+        else:
+            print(f"Failed to convert video: {conversion_response.content}")
+            return None
+
+    except Exception as e:
+        print(f"Exception during conversion: {str(e)}")
+        return None
+
+
+
+
